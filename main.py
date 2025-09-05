@@ -33,9 +33,8 @@ class Survey(ft.Container):
         )
 
         self.main_content_controls = ft.Column(
-            spacing=8, 
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            scroll=ft.ScrollMode.AUTO,  # Added scroll for mobile devices
+            spacing=8, horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            scroll=ft.ScrollMode.AUTO
         )
 
         self.main_content_container_column = ft.Column(
@@ -55,8 +54,6 @@ class Survey(ft.Container):
                                     bgcolor=ft.Colors.WHITE,
                                     padding=ft.padding.all(10),
                                     content=self.main_content_controls,
-                                    # Set width for larger screens, but not for mobile
-                                    width=600 if not self._is_mobile_device() else None,
                                 )
                             ],
                         )
@@ -81,13 +78,13 @@ class Survey(ft.Container):
                         )
                     ],
                 ),
-                ft.Divider(color=ft.Colors.TRANSPARENT, height=5),
+                ft.Divider(color=ft.Colors.TRANSPARENT, height=2),
                 ft.ResponsiveRow(
                     controls=[self.language_slider],
                     alignment=ft.MainAxisAlignment.CENTER,
                     expand=False,
                 ),
-                ft.Divider(height=2, color=ft.Colors.TRANSPARENT),
+                ft.Divider(height=1, color=ft.Colors.TRANSPARENT),
                 self.main_content_container_column,
             ],
         )
@@ -103,14 +100,8 @@ class Survey(ft.Container):
                 font_family="Arial",
                 weight=ft.FontWeight.BOLD,
                 color=ft.Colors.BLUE_GREY_900,
-                text_align=ft.TextAlign.CENTER,  # Center align for mobile
             ),
-            ft.Text(
-                value=t["request"], 
-                size=20, 
-                color=ft.Colors.BLUE_GREY_500,
-                text_align=ft.TextAlign.CENTER,  # Center align for mobile
-            ),
+            ft.Text(value=t["request"], size=20, color=ft.Colors.BLUE_GREY_500),
             ft.Text(
                 value=t["description"],
                 size=12,
@@ -154,21 +145,10 @@ class Survey(ft.Container):
                 text=t["button"],
                 bgcolor=ft.Colors.BLUE_GREY_200,
                 color=ft.Colors.BLACK,
-                style=ft.ButtonStyle(
-                    shape=ft.RoundedRectangleBorder(radius=5),
-                    # Add padding for better touch targets on mobile
-                    padding=ft.padding.all(12) if self._is_mobile_device() else ft.padding.all(8)
-                ),
+                style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=5)),
                 on_click=self.clicked_start_survey,
             ),
         ]
-
-    def _is_mobile_device(self):
-        """Check if the user is on a mobile device based on user agent."""
-        user_agent = (self.page.client_user_agent or "").lower()
-        mobile_keywords = ['android', 'iphone', 'ipad', 'ipod', 'blackberry', 
-                          'windows phone', 'mobile', 'webos', 'opera mini']
-        return any(keyword in user_agent for keyword in mobile_keywords)
 
     def _create_questionnaire_controls(self):
         from survey import general_info_questions
@@ -203,30 +183,32 @@ class Survey(ft.Container):
             self._refresh_content()
 
     def on_view_change(self, e):
-        # Responsive title size using page.width
-        w = getattr(self.page, "width", 800) or 800
+        # Responsive title size
         size = 50
-        if w < 600:
+        if self.page.width < 600:
             size = 25
-        elif w < 900:
+        elif self.page.width < 900:
             size = 40
         if hasattr(self.title_text, "text_control"):
             self.title_text.text_control.size = size
-
-        # Also allow the question manager to react to page height/width changes
-        if self.question_manager:
-            try:
-                # call a new on_view_change on the QuestionManager (see survey.py changes)
-                self.question_manager.on_view_change()
-            except Exception:
-                # keep UI resilient — don't crash on unexpected resize logic
-                pass
-
         self.page.update()
 
     def clicked_start_survey(self, e):
         self.current_page = "questionnaire"
         self._refresh_content()
+
+
+# --------- LOADING LOGIC ----------
+async def load_survey(page: ft.Page):
+    page.controls.clear()
+    survey_container = Survey(page)
+    page.on_resized = survey_container.on_view_change
+    page.add(survey_container)
+    # Animate gradient only if coroutine exists
+    if hasattr(survey_container.title_text, "animate_gradient_task"):
+        page.run_task(survey_container.title_text.animate_gradient_task)
+    survey_container.on_view_change(None)
+    page.update()
 
 
 # --------- MAIN ENTRY POINT ----------
@@ -277,6 +259,5 @@ def main(page: ft.Page):
 if __name__ == "__main__":
     ft.app(
         target=main,
-        assets_dir="assets",
-        # view=ft.AppView.WEB_BROWSER  # Ensure it opens in web browser mode
+        assets_dir="assets"
     )

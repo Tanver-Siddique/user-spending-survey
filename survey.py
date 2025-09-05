@@ -27,7 +27,7 @@ class QuestionManager:
     def __init__(self, page, language="en", on_complete=None):
         self.page = page
         # integration url
-        self.APPS_SCRIPT_URL = self.APPS_SCRIPT_URL = os.getenv("APPS_SCRIPT_URL")
+        self.APPS_SCRIPT_URL = os.getenv("APPS_SCRIPT_URL")
 
         self.language = language
         self.questions = list(general_info[language].items())
@@ -36,11 +36,9 @@ class QuestionManager:
         self.on_complete = on_complete
         self.checkboxes = []
         self.is_completed = False
-        self.submitting = False  # Flag to prevent double submission
 
         self.added_categories = []
         self.blocks = []
-        self.options_height = 300
         self.shown_category_reminders = set()
 
         self.CATEGORY_LABELS = {
@@ -70,23 +68,17 @@ class QuestionManager:
         )
         self.other_option_id = None
 
-        # Mobile-friendly button styling
-        button_style = ft.ButtonStyle(
-            shape=ft.RoundedRectangleBorder(radius=5),
-            padding=ft.padding.all(12) if self.is_mobile_device() else ft.padding.all(8)
-        )
-
         self.next_button_controls = ft.ElevatedButton(
             text="Next ▶",
             on_click=self.go_next,
             disabled=True,
-            style=button_style,
+            style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=5)),
         )
         self.previous_button_controls = ft.ElevatedButton(
             text="◀ Previous",
             on_click=self.go_previous,
             disabled=True,
-            style=button_style,
+            style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=5)),
         )
 
         self.progress_bar = ft.ProgressBar(
@@ -96,11 +88,10 @@ class QuestionManager:
         self.question_switcher = ft.AnimatedSwitcher(
             content=ft.Container(),
             transition=ft.AnimatedSwitcherTransition.FADE,
-            duration=500,
-            reverse_duration=500,
+            duration=300,
+            reverse_duration=300,
             switch_in_curve=ft.AnimationCurve.EASE_IN_OUT,
             switch_out_curve=ft.AnimationCurve.EASE_IN_OUT,
-            expand=True
         )
 
         self.main_container = ft.Column(
@@ -114,42 +105,12 @@ class QuestionManager:
                 ),
             ],
             expand=True,
-            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN
         )
 
         self.show_question()
 
     # -------------------- helpers --------------------
-
-    def is_mobile_device(self):
-        """Check if the user is on a mobile device based on user agent."""
-        user_agent = (self.page.client_user_agent or "").lower()
-        mobile_keywords = ['android', 'iphone', 'ipad', 'ipod', 'blackberry', 
-                          'windows phone', 'mobile', 'webos', 'opera mini']
-        return any(keyword in user_agent for keyword in mobile_keywords)
-
-    def on_view_change(self):
-        """
-        Called by the outer Survey when the page resizes.
-        Recomputes the dynamic height for the options area and refreshes the current question.
-        """
-        try:
-            page_h = getattr(self.page, "height", None) or 600
-            # Different height calculation for mobile vs desktop
-            if self.is_mobile_device():
-                computed = int(page_h * 0.4)  # 40% of screen height on mobile
-            else:
-                computed = int(page_h * 0.45)  # 45% of screen height on desktop
-                
-            self.options_height = max(200, min(800, computed))
-        except Exception:
-            self.options_height = 300
-
-        # Re-render the current question so new height applies immediately
-        try:
-            self.show_question()
-        except Exception:
-            pass
 
     async def _show_category_then_start(self, category_key: int, target_index: int):
         """
@@ -217,6 +178,8 @@ class QuestionManager:
                 self.show_question()
             except Exception:
                 pass
+
+
 
     def _commit_current_answer(self):
         """Saves the current state of inputs into self.answers without navigating."""
@@ -356,26 +319,18 @@ class QuestionManager:
         """Show mandatory WhatsApp/Email entry before survey ends."""
         entry_field = ft.TextField(
             label="Enter WhatsApp number or Email",
-            autofocus=True,
-            width=400 if not self.is_mobile_device() else 300,
+            autofocus=False,
+            width=300,
             border_color=ft.Colors.BLUE,
             color=ft.Colors.BLACK,
         )
 
         error_text = ft.Text("", color=ft.Colors.RED)
 
-        # Create a container for the submit button to better handle mobile events
-        submit_container = ft.Container(
-            content=ft.ElevatedButton(
-                text="Submit",
-                disabled=True,  # Initially disabled
-                style=ft.ButtonStyle(
-                    shape=ft.RoundedRectangleBorder(radius=5),
-                    padding=ft.padding.all(12) if self.is_mobile_device() else ft.padding.all(8)
-                ),
-            ),
-            # Add padding for better touch target on mobile
-            padding=ft.padding.only(top=10, bottom=10),
+        submit_btn = ft.ElevatedButton(
+            text="Submit",
+            disabled=True,  # Initially disabled
+            style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=5)),
         )
 
         def is_valid_contact(value: str) -> bool:
@@ -394,7 +349,7 @@ class QuestionManager:
         def validate_input(e):
             value = entry_field.value.strip()
             valid = is_valid_contact(value)
-            submit_container.content.disabled = not valid
+            submit_btn.disabled = not valid
             if not valid and value:  # Show error only if user typed something invalid
                 error_text.value = "Please enter a valid 11-digit number or email."
             else:
@@ -403,22 +358,11 @@ class QuestionManager:
 
         entry_field.on_change = validate_input
 
-        # Modify the on_click handler for mobile compatibility
-        async def handle_submit(e):
-            # Prevent multiple submissions
-            if self.submitting:
-                return
-                
-            self.submitting = True
-            # Prevent default behavior that might cause issues on mobile
-            e.control.disabled = True
-            self.page.update()
-            await self._process_final_submission(entry_field, error_text)
-            self.submitting = False
+        submit_btn.on_click = lambda e: self.page.run_task(
+            self._process_final_submission, entry_field, error_text
+        )
 
-        submit_container.content.on_click = handle_submit
-
-        self.submit_action_container.content = submit_container
+        self.submit_action_container.content = submit_btn
 
         self.question_switcher.content = ft.Column(
             spacing=15,
@@ -571,6 +515,7 @@ class QuestionManager:
 
         self.show_question()
 
+
     def _index_of_qid_in_list(self, question_list, qid):
         """Helper method to find the index of a question ID in a question list"""
         for i, (qid_i, _) in enumerate(question_list):
@@ -592,29 +537,19 @@ class QuestionManager:
 
         entry_field.disabled = True
         error_text.value = ""
-        
-        # Create a more prominent loading indicator for mobile
-        self.submit_action_container.content = ft.Container(
-            content=ft.Column(
-                alignment=ft.MainAxisAlignment.CENTER,
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                controls=[
-                    ft.ProgressRing(width=30, height=30, color=ft.Colors.BLUE),
-                    ft.Text(
-                        value="Submitting...",
-                        color=ft.Colors.BLUE,
-                        size=16,
-                        weight=ft.FontWeight.W_600
-                    )
-                ]
-            ),
-            padding=10,
-            height=80  # Fixed height for consistent mobile layout
+        self.submit_action_container.content = ft.Row(
+            controls=[
+                ft.ProgressRing(width=24, height=24, color=ft.Colors.BLACK),
+                ft.Text(
+                    value="Submitting",
+                    color=ft.Colors.BROWN,
+                    size=15,
+                    weight=ft.FontWeight.W_600
+                )
+            ],
+            alignment=ft.MainAxisAlignment.CENTER
         )
         self.page.update()
-
-        # Add a small delay to ensure UI updates before submission
-        await asyncio.sleep(0.3)  # Increased from 0.1 to 0.3 for mobile
 
         # Ensure submission id exists BEFORE sending
         if "Submission_ID" not in self.answers:
@@ -623,17 +558,11 @@ class QuestionManager:
         self.answers["CONTACT"] = value
 
         # Submit in a thread (network I/O)
-        try:
-            await asyncio.to_thread(self._submit_data_to_google_sheet)
-        except Exception as e:
-            print(f"Submission error: {e}")
-            # Show error message but still proceed to end screen
-            error_text.value = "Submission failed, but your responses have been saved."
-            self.page.update()
-            await asyncio.sleep(2)
+        await asyncio.to_thread(self._submit_data_to_google_sheet)
 
         # Show the end screen (which will also keep the submission id)
         self.show_end()
+
 
     def update_button_states(self):
         self.previous_button_controls.disabled = self.current_index == 0
@@ -755,7 +684,6 @@ class QuestionManager:
 
         container = ft.Column(
             spacing=10,
-            expand=True,
             controls=[
                 ft.Markdown(
                     value=qdata["question"],
@@ -819,9 +747,7 @@ class QuestionManager:
             )
             options_container.controls.append(radio_group)
 
-        container.controls.append(
-            ft.Container(content=options_container, expand=True, height=self.options_height)
-        )
+        container.controls.append(ft.Container(content=options_container, expand=True, height=max(300, int(self.page.height * 0.6))))
         options_container.controls.append(self.other_textfield)
         return container
 
@@ -839,17 +765,6 @@ class QuestionManager:
     # -------------------- navigation --------------------
 
     def go_next(self, e):
-        # For mobile devices, add a small delay to ensure proper event handling
-        if self.is_mobile_device():
-            async def delayed_navigation():
-                await asyncio.sleep(0.1)
-                self._go_next_impl()
-            
-            self.page.run_task(delayed_navigation)
-        else:
-            self._go_next_impl()
-
-    def _go_next_impl(self):
         # Commit current UI state to answers
         self._commit_current_answer()
 
@@ -1005,6 +920,7 @@ class QuestionManager:
             else:
                 self.show_end()
 
+
     def _is_last_question_in_category(self, qid):
         """Check if the current question is the last in its category block"""
         for block in self.blocks:
@@ -1034,6 +950,7 @@ class QuestionManager:
                 break
 
         return None
+
 
     def go_previous(self, e):
         self._commit_current_answer()
@@ -1142,6 +1059,7 @@ class QuestionManager:
             return response_data  # return so caller can handle
         except requests.exceptions.RequestException:
             return {"status": "error", "message": "Failed to send data"}
+
 
     def show_end(self):
         # Mark completed
