@@ -54,6 +54,7 @@ class Survey(ft.Container):
                                     bgcolor=ft.Colors.WHITE,
                                     padding=ft.padding.all(10),
                                     content=self.main_content_controls,
+                                    border_radius=10,
                                 )
                             ],
                         )

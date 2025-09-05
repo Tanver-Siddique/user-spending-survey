@@ -706,11 +706,15 @@ class QuestionManager:
                 is_checked = (normalized_id in current_values) or (
                         is_other_selected_from_answer and normalized_id == self.other_option_id)
                 cb = ft.Checkbox(
-                    label=opt_text,
+                    label=ft.Text(
+                        value=opt_text,
+                        color=ft.Colors.BLACK,
+                        weight=ft.FontWeight.W_400,
+                        no_wrap=False
+                    ),
                     active_color=ft.Colors.BLACK,
                     check_color=ft.Colors.WHITE,
                     border_side=ft.BorderSide(color=ft.Colors.BLUE_GREY_400, width=2),
-                    label_style=ft.TextStyle(color=ft.Colors.BLACK, weight=ft.FontWeight.W_400),
                     value=is_checked,
                     data=normalized_id,
                     on_change=self.handle_checkbox_change,
@@ -738,7 +742,7 @@ class QuestionManager:
                                 ft.ControlState.DEFAULT: ft.Colors.BLUE_GREY_400,
                             },
                             label=opt_text,
-                            label_style=ft.TextStyle(color=ft.Colors.BLACK, weight=ft.FontWeight.W_400),
+                            label_style=ft.TextStyle(color=ft.Colors.BLACK, weight=ft.FontWeight.W_400,overflow=ft.TextOverflow.ELLIPSIS),
                         )
                         for opt_id, opt_text in qdata["options"].items()
                     ]
@@ -747,17 +751,35 @@ class QuestionManager:
             )
             options_container.controls.append(radio_group)
 
-        container.controls.append(ft.Container(content=options_container, expand=True, height=max(300, int(self.page.height * 0.6))))
+        options_scroll_container = ft.Container(
+            content=options_container,
+            # bgcolor=ft.Colors.with_opacity(0.5, ft.Colors.BLUE_GREY_100),
+            border_radius=10,
+            padding=ft.padding.only(left=5, top=5),
+            expand=True,
+            height=max(200, int(self.page.height * 0.4)),  # Adjust this ratio as needed
+            shadow=ft.BoxShadow(
+                spread_radius=-5,  # Negative spread for inner effect
+                blur_radius=15,
+                color=ft.Colors.with_opacity(1, ft.Colors.BLUE_GREY_100),
+                offset=ft.Offset(0, 0),
+                blur_style=ft.ShadowBlurStyle.OUTER
+            )
+        )
+
+        container.controls.append(options_scroll_container)
         options_container.controls.append(self.other_textfield)
         return container
 
     def show_question(self):
         if self.questions:
             total = len(self.questions)
-            # keep END included but safe-guard division
             self.progress_bar.value = (self.current_index + 1) / total if total > 0 else 0
         else:
             self.progress_bar.value = 0
+            
+        # Set a fixed height for the question switcher to prevent it from expanding too much
+        self.question_switcher.height = max(300, int(self.page.height * 0.6))
         self.question_switcher.content = self.create_question_content()
         self.update_button_states()
         self.page.update()
